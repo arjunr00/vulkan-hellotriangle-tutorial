@@ -1,15 +1,17 @@
 #include "HelloTriangle.hpp"
 #include "vulkan/vulkan_core.h"
 
-#define GLFW_INCLUDE_VULKAN 
-#include <GLFW/glfw3.h>
-
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#define GLFW_INCLUDE_VULKAN 
+#include <GLFW/glfw3.h>
 
 void
 HelloTriangleApplication::run() {
@@ -37,6 +39,9 @@ HelloTriangleApplication::initVulkan() {
     createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
+    createSwapChain();
+    createImageViews();
+    createGraphicsPipeline();
     setupDebugMessenger();
 }
 
@@ -48,6 +53,9 @@ HelloTriangleApplication::mainLoop() {
 
 void
 HelloTriangleApplication::cleanup() {
+    for (auto& imageView : swapChainImageViews)
+        vkDestroyImageView(logicalDevice, imageView, nullptr);
+    vkDestroySwapchainKHR(logicalDevice, swapChain, nullptr);
     vkDestroyDevice(logicalDevice, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     if (enableValidationLayers) DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -170,7 +178,11 @@ HelloTriangleApplication::pickPhysicalDevice() {
 
 bool
 HelloTriangleApplication::isDeviceSuitable(VkPhysicalDevice device) {
-    return findQueueFamilies(device).isComplete() && checkDeviceExtensionSupport(device);
+    return (
+        findQueueFamilies(device).isComplete() &&
+        checkDeviceExtensionSupport(device) &&
+        querySwapChainSupport(device).isComplete()
+    );
 }
 
 HelloTriangleApplication::QueueFamilyIndices
@@ -274,6 +286,180 @@ HelloTriangleApplication::checkDeviceExtensionSupport(VkPhysicalDevice device) {
         requestedExtensionSet.erase(extension.extensionName);
 
     return requestedExtensionSet.empty();
+}
+
+void
+HelloTriangleApplication::createSwapChain() {
+    SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.surfaceFormats);
+    VkPresentModeKHR presentationMode = chooseSwapPresentationMode(swapChainSupport.presentationModes);
+    VkExtent2D extent = chooseSwapExtent(swapChainSupport.surfaceCapabilities);
+
+    /* Add 1 to minimum number of images in chain to give driver time to perform operations */
+    uint32_t imageCount = swapChainSupport.surfaceCapabilities.minImageCount + 1;
+    if (swapChainSupport.surfaceCapabilities.maxImageCount > 0 &&
+            imageCount > swapChainSupport.surfaceCapabilities.maxImageCount)
+        imageCount = swapChainSupport.surfaceCapabilities.maxImageCount;
+
+    /* Set up swap chain */
+    VkSwapchainCreateInfoKHR createInfo {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = surface;
+    createInfo.minImageCount = imageCount;
+    createInfo.imageFormat = surfaceFormat.format; /* Could be directed to a separate image first */
+    createInfo.imageExtent = extent;
+    createInfo.imageArrayLayers = 1; /* Always one unless we're doing stereoscopic 3D */
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(),
+                                      indices.presentationFamily.value() };
+
+    if (indices.graphicsFamily != indices.presentationFamily) {
+        /* If two different queue families are used, handle them concurrently */
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = 2;
+        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+    } else {
+        /* Otherwise, use them exclusively (faster) */
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0;
+        createInfo.pQueueFamilyIndices = nullptr;
+    }
+
+    /* Could transform the image (e.g. rotation, flip) */
+    createInfo.preTransform = swapChainSupport.surfaceCapabilities.currentTransform;
+    /* Can opt to use alpha channel to blend with other windows */
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.presentMode = presentationMode;
+    createInfo.clipped = VK_TRUE; /* Ignore pixel colors behind window */
+    createInfo.oldSwapchain = VK_NULL_HANDLE; /* Swap chain could become invalid or unoptimized */
+
+    if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create swap chain.");
+
+    /* Store images and information as member variables */
+    vkGetSwapchainImagesKHR(logicalDevice, swapChain, &imageCount, nullptr);
+    swapChainImages.resize(imageCount);
+    vkGetSwapchainImagesKHR(logicalDevice, swapChain, &imageCount, swapChainImages.data());
+    swapChainImageFormat = surfaceFormat.format;
+    swapChainExtent = extent;
+}
+
+HelloTriangleApplication::SwapChainSupportDetails
+HelloTriangleApplication::querySwapChainSupport(VkPhysicalDevice device) {
+    SwapChainSupportDetails details;
+
+    /* Determine supported capabilities */
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.surfaceCapabilities);
+
+    uint32_t formatCount;
+    uint32_t presentationModeCount;
+    /* Count the number of available surface formats */
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+    /* Count the number of available presentation modes */
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &presentationModeCount, nullptr);
+
+    if (formatCount != 0) {
+        details.surfaceFormats.resize(formatCount);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(
+                device, surface, &formatCount, details.surfaceFormats.data());
+    }
+
+    if (presentationModeCount != 0) {
+        details.presentationModes.resize(presentationModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(
+                device, surface, &presentationModeCount, details.presentationModes.data());
+    }
+
+    return details;
+}
+
+VkSurfaceFormatKHR
+HelloTriangleApplication::chooseSwapSurfaceFormat(
+        const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+    for (const auto& format : availableFormats) {
+        /* Look for sRGB support */
+        if (format.format == VK_FORMAT_B8G8R8A8_SRGB &&
+                format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            return format;
+    }
+
+    /* Default to first format if "best" couldn't be found */
+    return availableFormats[0];
+}
+
+VkPresentModeKHR
+HelloTriangleApplication::chooseSwapPresentationMode(
+        const std::vector<VkPresentModeKHR>& availablePresentationModes) {
+    for (const auto& mode : availablePresentationModes) {
+        /* Look for mailbox presentation */
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
+            return mode;
+    }
+
+    /* Default to regular FIFO presentation, which is guaranteed to be available */
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D
+HelloTriangleApplication::chooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities) {
+    /* Default to resolution automatically set by Vulkan */
+    if (capabilities.currentExtent.width != UINT32_MAX)
+        return capabilities.currentExtent;
+
+    /* Otherwise, determine the resolution manually */
+    VkExtent2D actualExtent = { WIDTH, HEIGHT };
+
+    actualExtent.width =
+        std::max(capabilities.minImageExtent.width,
+                 std::min(capabilities.maxImageExtent.width,
+                          actualExtent.width));
+    actualExtent.height =
+        std::max(capabilities.minImageExtent.height,
+                 std::min(capabilities.maxImageExtent.height,
+                          actualExtent.height));
+
+    return actualExtent;
+}
+
+void
+HelloTriangleApplication::createImageViews() {
+    swapChainImageViews.resize(swapChainImages.size());
+
+    int i = 0;
+    for (const auto& image : swapChainImages) {
+        /* Set up each image view */
+        VkImageViewCreateInfo createInfo {};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = image;
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; /* How to treat image data (need a 2D image) */
+        createInfo.format = swapChainImageFormat;
+
+        /* Can manually control RGBA components */
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        /* Define image's purpose and accessed areas */
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1; /* Multiple layers is for stereographic 3D */
+
+        if (vkCreateImageView(
+                    logicalDevice, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS)
+                throw std::runtime_error("Failed to create image views.");
+        ++i;
+    }
+}
+
+void
+HelloTriangleApplication::createGraphicsPipeline() {
+
 }
 
 void

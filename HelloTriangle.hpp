@@ -2,12 +2,12 @@
 #define HELLO_TRIANGLE_H
 
 #include "vulkan/vulkan_core.h"
-#define GLFW_INCLUDE_VULKAN 
-#include <GLFW/glfw3.h>
-
 #include <string>
 #include <vector>
 #include <optional>
+
+#define GLFW_INCLUDE_VULKAN 
+#include <GLFW/glfw3.h>
 
 class HelloTriangleApplication {
     public:
@@ -15,13 +15,24 @@ class HelloTriangleApplication {
         void run();
 
     private:
-        /* Struct to hold queue family indices and other information */
+        /* Struct to hold queue family indices */
         struct QueueFamilyIndices {
             std::optional<uint32_t> graphicsFamily;
             std::optional<uint32_t> presentationFamily;
 
             bool isComplete() {
                 return graphicsFamily.has_value() && presentationFamily.has_value();
+            }
+        };
+
+        /* Struct to hold swap chain properties */
+        struct SwapChainSupportDetails {
+            VkSurfaceCapabilitiesKHR surfaceCapabilities;
+            std::vector<VkSurfaceFormatKHR> surfaceFormats;
+            std::vector<VkPresentModeKHR> presentationModes;
+
+            bool isComplete() {
+                return !surfaceFormats.empty() && !presentationModes.empty();
             }
         };
 
@@ -53,7 +64,14 @@ class HelloTriangleApplication {
         VkQueue graphicsQueue;     /* A queue to draw graphics */
         VkQueue presentationQueue; /* A queue to present images to the window */
 
-        VkSurfaceKHR surface; /* Window surface for drawing */
+        VkSurfaceKHR surface; /* The window surface for drawing */
+
+        VkSwapchainKHR swapChain;             /* The swap chain to buffer images */
+        std::vector<VkImage> swapChainImages; /* The images in the swap chain */
+        VkFormat swapChainImageFormat;        /* The format of the images */
+        VkExtent2D swapChainExtent;           /* The resolution of the images */
+
+        std::vector<VkImageView> swapChainImageViews; /* A view into images in the swap chain */
 
         VkDebugUtilsMessengerEXT debugMessenger; /* A debug messenger */
 
@@ -90,6 +108,25 @@ class HelloTriangleApplication {
 
         /* Check whether the physical device supports the requested extensions */
         bool checkDeviceExtensionSupport(VkPhysicalDevice device);
+
+        /* Create a new swap chain */
+        void createSwapChain();
+        /* Find the swap chain properties supported by the physical device */
+        SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+        /* Prefer a specific surface format */
+        VkSurfaceFormatKHR chooseSwapSurfaceFormat(
+                const std::vector<VkSurfaceFormatKHR>& availableSurfaceFormats);
+        /* Prefer a specific presentation mode */
+        VkPresentModeKHR chooseSwapPresentationMode(
+                const std::vector<VkPresentModeKHR>& availablePresentationModes);
+        /* Prefer the resolution of the window */
+        VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities);
+
+        /* Create a way to access images in the render pipeline */
+        void createImageViews();
+
+        /* Create the graphics pipeline */
+        void createGraphicsPipeline();
 
         /* Populate debug messenger */
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
