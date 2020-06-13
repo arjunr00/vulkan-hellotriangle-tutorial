@@ -11,6 +11,9 @@
 
 class HelloTriangleApplication {
     public:
+        HelloTriangleApplication();
+        ~HelloTriangleApplication();
+
         /* Run the Vulkan application */
         void run();
 
@@ -24,8 +27,7 @@ class HelloTriangleApplication {
                 return graphicsFamily.has_value() && presentationFamily.has_value();
             }
         };
-
-        /* Struct to hold swap chain properties */
+/* Struct to hold swap chain properties */
         struct SwapChainSupportDetails {
             VkSurfaceCapabilitiesKHR surfaceCapabilities;
             std::vector<VkSurfaceFormatKHR> surfaceFormats;
@@ -79,8 +81,6 @@ class HelloTriangleApplication {
         void initWindow();
         /* Initialize Vulkan instance */
         void initVulkan();
-        /* Draw to window */
-        void mainLoop();
         /* Terminate Vulkan and GLFW */
         void cleanup();
 

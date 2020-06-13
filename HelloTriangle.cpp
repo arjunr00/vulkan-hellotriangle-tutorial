@@ -13,16 +13,8 @@
 #define GLFW_INCLUDE_VULKAN 
 #include <GLFW/glfw3.h>
 
-void
-HelloTriangleApplication::run() {
-    initWindow();
-    initVulkan();
-    mainLoop();
-    cleanup();
-}
-
-void
-HelloTriangleApplication::initWindow() {
+HelloTriangleApplication::HelloTriangleApplication() {
+    /* Initialize window */
     glfwInit();
     
     /* Disable OpenGL, we aren't using it */
@@ -30,11 +22,8 @@ HelloTriangleApplication::initWindow() {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-}
 
-
-void
-HelloTriangleApplication::initVulkan() {
+    /* Initialize Vulkan stuff */
     createInstance();
     createSurface();
     pickPhysicalDevice();
@@ -45,14 +34,7 @@ HelloTriangleApplication::initVulkan() {
     setupDebugMessenger();
 }
 
-void
-HelloTriangleApplication::mainLoop() {
-    while (!glfwWindowShouldClose(window))
-        glfwPollEvents();
-}
-
-void
-HelloTriangleApplication::cleanup() {
+HelloTriangleApplication::~HelloTriangleApplication() {
     for (auto& imageView : swapChainImageViews)
         vkDestroyImageView(logicalDevice, imageView, nullptr);
     vkDestroySwapchainKHR(logicalDevice, swapChain, nullptr);
@@ -63,6 +45,13 @@ HelloTriangleApplication::cleanup() {
     vkDestroyInstance(instance, nullptr);
     glfwDestroyWindow(window);
     glfwTerminate();
+}
+
+void
+HelloTriangleApplication::run() {
+    /* Keep the window updated */
+    while (!glfwWindowShouldClose(window))
+        glfwPollEvents();
 }
 
 bool
