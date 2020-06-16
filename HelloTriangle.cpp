@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <set>
 #include <stdexcept>
@@ -448,7 +449,49 @@ HelloTriangleApplication::createImageViews() {
 
 void
 HelloTriangleApplication::createGraphicsPipeline() {
+    std::vector<char> vertShaderBuf = readFile("shader/shader.vert.spv");
+    std::vector<char> fragShaderBuf = readFile("shader/shader.frag.spv");
 
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderBuf);
+    VkShaderModule fragShaderModule = createShaderModule(fragShaderBuf);
+
+    /* Set up vertex shader stage */
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo {};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT; /* Specify pipeline stage */
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main"; /* Entrypoint function name */
+    vertShaderStageInfo.pSpecializationInfo = nullptr; /* Can be used to specify constant values */
+
+    /* Set up fragment shader stage */
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo {};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT; /* Specify pipeline stage */
+    fragShaderStageInfo.module = fragShaderModule;
+    fragShaderStageInfo.pName = "main"; /* Entrypoint function name */
+    fragShaderStageInfo.pSpecializationInfo = nullptr; /* Can be used to specify constant values */
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = 
+        { vertShaderStageInfo, fragShaderStageInfo };
+
+    vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+    vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
+}
+
+VkShaderModule
+HelloTriangleApplication::createShaderModule(const std::vector<char>& shaderBuf) {
+    VkShaderModuleCreateInfo createInfo {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = shaderBuf.size();
+    /* Reinterpret bytes in buffer as uint32; buffer must satisfy alignment requirements
+     * but std::vector ensures this by default */
+    createInfo.pCode = reinterpret_cast<const uint32_t *>(shaderBuf.data());
+
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create shader module.");
+
+    return shaderModule;
 }
 
 void
@@ -480,6 +523,24 @@ HelloTriangleApplication::setupDebugMessenger() {
     if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger)
             != VK_SUCCESS)
         throw std::runtime_error("Failed to set up debug messenger.");
+}
+
+std::vector<char>
+HelloTriangleApplication::readFile(const std::string& filename) {
+    /* ate = AT End of file, binary = read in raw bytes */
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open())
+        throw std::runtime_error("Failed to open file.");
+
+    size_t fileSize = (size_t) file.tellg();
+    std::vector<char> buffer(fileSize);
+
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+
+    file.close();
+    return buffer;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL

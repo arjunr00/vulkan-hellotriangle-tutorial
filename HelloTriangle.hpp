@@ -27,7 +27,7 @@ class HelloTriangleApplication {
                 return graphicsFamily.has_value() && presentationFamily.has_value();
             }
         };
-/* Struct to hold swap chain properties */
+        /* Struct to hold swap chain properties */
         struct SwapChainSupportDetails {
             VkSurfaceCapabilitiesKHR surfaceCapabilities;
             std::vector<VkSurfaceFormatKHR> surfaceFormats;
@@ -127,12 +127,16 @@ class HelloTriangleApplication {
 
         /* Create the graphics pipeline */
         void createGraphicsPipeline();
+        /* Create a shader module */
+        VkShaderModule createShaderModule(const std::vector<char>& shader);
 
         /* Populate debug messenger */
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
         /* Set up the debug messenger */
         void setupDebugMessenger();
 
+        /* Read in files */
+        static std::vector<char> readFile(const std::string& filename);
         /* Debug callback function */
         static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
                 VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
