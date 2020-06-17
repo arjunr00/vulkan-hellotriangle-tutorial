@@ -68,6 +68,8 @@ class HelloTriangleApplication {
 
         VkSurfaceKHR surface; /* The window surface for drawing */
 
+        VkPipelineLayout pipelineLayout; /* A pipeline layout for shaders */
+
         VkSwapchainKHR swapChain;             /* The swap chain to buffer images */
         std::vector<VkImage> swapChainImages; /* The images in the swap chain */
         VkFormat swapChainImageFormat;        /* The format of the images */
