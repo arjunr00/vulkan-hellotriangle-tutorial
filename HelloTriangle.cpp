@@ -31,12 +31,17 @@ HelloTriangleApplication::HelloTriangleApplication() {
     createLogicalDevice();
     createSwapChain();
     createImageViews();
+    createRenderPass();
     createGraphicsPipeline();
     setupDebugMessenger();
 }
 
 HelloTriangleApplication::~HelloTriangleApplication() {
+    for (auto framebuffer : swapChainFramebuffers)
+        vkDestroyFramebuffer(logicalDevice, framebuffer, nullptr);
+    vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(logicalDevice, pipelineLayout, nullptr);
+    vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
     for (auto& imageView : swapChainImageViews)
         vkDestroyImageView(logicalDevice, imageView, nullptr);
     vkDestroySwapchainKHR(logicalDevice, swapChain, nullptr);
@@ -449,9 +454,43 @@ HelloTriangleApplication::createImageViews() {
 }
 
 void
+HelloTriangleApplication::createRenderPass() {
+    VkAttachmentDescription colorAttachment {};
+    colorAttachment.format = swapChainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; /* Clear attachment before rendering */
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; /* Retain rendered contents */
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; /* Present image in swap chain */
+
+    /* Specify subpass references */
+    VkAttachmentReference colorAttachmentRef {};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    /* Set up subpasses */
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkRenderPassCreateInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+
+    if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create render pass.");
+}
+
+void
 HelloTriangleApplication::createGraphicsPipeline() {
-    std::vector<char> vertShaderBuf = readFile("shader/shader.vert.spv");
-    std::vector<char> fragShaderBuf = readFile("shader/shader.frag.spv");
+    std::vector<char> vertShaderBuf = readFile("build/shader.vert.spv");
+    std::vector<char> fragShaderBuf = readFile("build/shader.frag.spv");
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderBuf);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderBuf);
@@ -564,8 +603,9 @@ HelloTriangleApplication::createGraphicsPipeline() {
     colorBlending.blendConstants[2] = 0.f;
     colorBlending.blendConstants[3] = 0.f;
 
-    /* Set up pipeline layout for specifying uniform values for shaders */
+    /* Set up pipeline layout for specifying uniform values for shaders at draw time */
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 0;
     pipelineLayoutInfo.pSetLayouts = nullptr;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
@@ -574,6 +614,30 @@ HelloTriangleApplication::createGraphicsPipeline() {
             != VK_SUCCESS)
         throw std::runtime_error("Failed to create pipeline layout.");
 
+    VkGraphicsPipelineCreateInfo pipelineInfo {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2; /* One for vertex and fragment shader */
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = nullptr; /* Can be used to change some state at draw time */
+    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; /* Can create pipeline from existing one */
+    pipelineInfo.basePipelineIndex = -1;
+
+    if (vkCreateGraphicsPipelines(
+                logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline)
+            != VK_SUCCESS)
+        throw std::runtime_error("Failed to create graphics pipeline.");
+
+    /* Can destroy these once the graphics pipeline is built */
     vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
     vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 }
@@ -592,6 +656,27 @@ HelloTriangleApplication::createShaderModule(const std::vector<char>& shaderBuf)
         throw std::runtime_error("Failed to create shader module.");
 
     return shaderModule;
+}
+
+void
+HelloTriangleApplication::createFramebuffers() {
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+    for (size_t i = 0; i < swapChainImageViews.size(); ++i) {
+        VkImageView attachments[] = { swapChainImageViews[i] };
+
+        /* Set up framebuffer */
+        VkFramebufferCreateInfo framebufferInfo {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.width = swapChainExtent.width;
+        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i])
+                != VK_SUCCESS)
+            throw std::runtime_error("Failed to create framebuffer.");
+    }
 }
 
 void

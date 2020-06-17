@@ -68,14 +68,18 @@ class HelloTriangleApplication {
 
         VkSurfaceKHR surface; /* The window surface for drawing */
 
-        VkPipelineLayout pipelineLayout; /* A pipeline layout for shaders */
-
         VkSwapchainKHR swapChain;             /* The swap chain to buffer images */
         std::vector<VkImage> swapChainImages; /* The images in the swap chain */
         VkFormat swapChainImageFormat;        /* The format of the images */
         VkExtent2D swapChainExtent;           /* The resolution of the images */
 
         std::vector<VkImageView> swapChainImageViews; /* A view into images in the swap chain */
+        std::vector<VkFramebuffer> swapChainFramebuffers; /* The framebuffers for rendering */
+
+        VkRenderPass renderPass; /* The actual render pass */
+        VkPipelineLayout pipelineLayout; /* A pipeline layout for shaders */
+
+        VkPipeline graphicsPipeline; /* The graphics pipeline */
 
         VkDebugUtilsMessengerEXT debugMessenger; /* A debug messenger */
 
@@ -127,10 +131,15 @@ class HelloTriangleApplication {
         /* Create a way to access images in the render pipeline */
         void createImageViews();
 
+        /* Create a way to specify framebuffer attachments */
+        void createRenderPass();
+
         /* Create the graphics pipeline */
         void createGraphicsPipeline();
         /* Create a shader module */
         VkShaderModule createShaderModule(const std::vector<char>& shader);
+
+        void createFramebuffers();
 
         /* Populate debug messenger */
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
