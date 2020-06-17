@@ -39,6 +39,6 @@ test: $(OUTPUT)
 	@./$(OUTPUT)
 
 clean:
-	echo -n "Cleaning directory .. "
+	@echo -n "Cleaning directory .. "
 	-@rm -rf $(OUTPUT_DIR)
-	echo "done"
+	@echo "done"
