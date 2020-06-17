@@ -57,6 +57,9 @@ class HelloTriangleApplication {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
 
+        /* Bound the number of frames that can be in-flight at a time */
+        const size_t MAX_FRAMES_IN_FLIGHT = 2;
+
         GLFWwindow *window;  /* The GLFW window */
         VkInstance instance; /* The Vulkan instance */
 
@@ -78,8 +81,19 @@ class HelloTriangleApplication {
 
         VkRenderPass renderPass; /* The actual render pass */
         VkPipelineLayout pipelineLayout; /* A pipeline layout for shaders */
-
         VkPipeline graphicsPipeline; /* The graphics pipeline */
+
+        VkCommandPool commandPool; /* A memory pool to manage memory for command buffers */
+        std::vector<VkCommandBuffer> commandBuffers; /* The command buffers */
+
+        /* Semaphores for synchronizing drawing threads */
+        std::vector<VkSemaphore> imageAvailableSemaphores;
+        std::vector<VkSemaphore> renderFinishedSemaphores;
+        /* Fences for CPU-GPU synchronization */
+        std::vector<VkFence> inFlightFences;
+        std::vector<VkFence> imagesInFlight;
+
+        size_t currentFrame = 0; /* The index of the currently-drawn frame */
 
         VkDebugUtilsMessengerEXT debugMessenger; /* A debug messenger */
 
@@ -127,7 +141,6 @@ class HelloTriangleApplication {
                 const std::vector<VkPresentModeKHR>& availablePresentationModes);
         /* Prefer the resolution of the window */
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities);
-
         /* Create a way to access images in the render pipeline */
         void createImageViews();
 
@@ -139,7 +152,18 @@ class HelloTriangleApplication {
         /* Create a shader module */
         VkShaderModule createShaderModule(const std::vector<char>& shader);
 
+        /* Create framebuffers from swap chain */
         void createFramebuffers();
+
+        /* Create a new command buffer memory pool */
+        void createCommandPool();
+        /* Create command buffers */
+        void createCommandBuffers();
+
+        /* Draw a frame on screen */
+        void drawFrame();
+        /* Create semaphores and fences for synchronization */
+        void createSynchronizationObjs();
 
         /* Populate debug messenger */
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
