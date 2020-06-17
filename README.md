@@ -1,6 +1,7 @@
 # Hello Triangle Vulkan Tutorial
 
 Just me learning how to use Vulkan.
+I'm using [this wonderful Vulkan tutorial](https://vulkan-tutorial.com/).
 
 ## Instructions
 
