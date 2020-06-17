@@ -40,5 +40,5 @@ test: $(OUTPUT)
 
 clean:
 	echo -n "Cleaning directory .. "
-	-@rm -f $(OUTPUT)
+	-@rm -rf $(OUTPUT_DIR)
 	echo "done"
